@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+
+set -o nounset -o pipefail
+
+# For some reason the jobs will get stuck if this number is larger, but I wasn't able to reproduce this locally.
+# Please, let me know if you have any insight into this, I'd love to get rid of it.
+[[ -v GITHUB_ACTIONS ]] && export GREP_C=999999999
+
+tmpDir=$(mktemp -d)
+trap 'rm -rf "${tmpDir}"' EXIT
+
+stdout="${tmpDir}/stdout"
+stderr="${tmpDir}/stderr"
+expected="${tmpDir}/expected"
+failed=0
+
+function run() {
+    ./van-greph "$@"  >"${stdout}" 2>"${stderr}"
+}
+
+function assertExitCode() {
+    code=$?
+    stderrOutput=$(cat "${stderr}")
+    [[ ${code} -ne ${1} ]] && fail "Expected exit code ${1}, got ${code}\nstderr:\n${stderrOutput}"
+}
+
+function assertStdout() {
+    assertOutput "${stdout}" "stdout" "${1}"
+}
+
+function assertStderr() {
+    assertOutput "${stderr}" "stderr" "${1}"
+}
+
+function assertOutput() {
+    if [[ ${3} == '' ]]; then
+        sizeAndFilename=$(du "${1}")
+        size=$(cut -f1 <<<"${sizeAndFilename}")
+        actualOutput=$(cat "${1}")
+        [[ ${size} -ne 0 ]] && fail "Expected empty ${2}, got:\n${actualOutput}"
+        return
+    fi
+
+    echo "${3}" >"${expected}"
+    tmp=$(cat "${1}")
+    env sed -r 's/\x1b/X/g' <<<"${tmp}" >"${1}"
+
+    if ! differences=$(diff --minimal "${1}" "${expected}"); then
+        fail "Expected different ${2}:\n${differences}"
+    fi
+}
+
+function fail() {
+    echo -e "\t\e[38;5;1mFAILED\e[0m"
+    echo -e 2>&1 "$*"
+    failed=1
+}
+
+function test() {
+    echo -e "\e[38;5;2mTest: $*\e[0m"
+}
+
+test No filters
+{
+    run <<<'dummy'
+    assertExitCode 1
+    assertStdout ''
+    assertStderr 'X[38;5;1mNo filters provided.X[0m'
+}
+
+test Too many filters
+{
+    run a b c d e f g h i j k l m n o p q r s t <<<'dummy'
+    assertExitCode 1
+    assertStdout ''
+    assertStderr 'X[38;5;1mSorry, too many filters - we ran out of colors...X[0m'
+}
+
+test Extended regexp
+{
+    run -E '1.+' <<<'dummy 123 dummy'
+    assertExitCode 0
+    assertStdout 'dummy X[38;5;1mX[K123 dummyX[mX[K'
+    assertStderr ''
+}
+
+test Extended regexp via --extended-regexp
+{
+    run --extended-regexp '1.+' <<<'dummy 123 dummy'
+    assertExitCode 0
+    assertStdout 'dummy X[38;5;1mX[K123 dummyX[mX[K'
+    assertStderr ''
+}
+
+test Fixed string match
+{
+    run -F '1*3' <<<'dummy 1*3 dummy'
+    assertExitCode 0
+    assertStdout 'dummy X[38;5;1mX[K1*3X[mX[K dummy'
+    assertStderr ''
+}
+
+test Fixed string match via --fixed-strings
+{
+    run --fixed-strings '1*3' <<<'dummy 1*3 dummy'
+    assertExitCode 0
+    assertStdout 'dummy X[38;5;1mX[K1*3X[mX[K dummy'
+    assertStderr ''
+}
+
+test Basic regexp
+{
+    run -G '1.\+' <<<'dummy 123 dummy'
+    assertExitCode 0
+    assertStdout 'dummy X[38;5;1mX[K123 dummyX[mX[K'
+    assertStderr ''
+}
+
+test Basic regexp via --basic-regexp
+{
+    run --basic-regexp '1.\+' <<<'dummy 123 dummy'
+    assertExitCode 0
+    assertStdout 'dummy X[38;5;1mX[K123 dummyX[mX[K'
+    assertStderr ''
+}
+
+test Perl regexp
+{
+    run -P '\babc.*?\b' <<<'dumy abcdefg dummy'
+    assertExitCode 0
+    assertStdout 'dumy X[38;5;1mX[KabcdefgX[mX[K dummy'
+    assertStderr ''
+}
+
+test Perl regexp via --perl-regexp
+{
+    run --perl-regexp '\babc.*?\b' <<<'dumy abcdefg dummy'
+    assertExitCode 0
+    assertStdout 'dumy X[38;5;1mX[KabcdefgX[mX[K dummy'
+    assertStderr ''
+}
+
+test Ignore case
+{
+    run -i 'DUM' <<<'dummy'
+    assertExitCode 0
+    assertStdout 'X[38;5;1mX[KdumX[mX[Kmy'
+    assertStderr ''
+}
+
+test Ignore case via --ignore-case
+{
+    run -i 'DUM' <<<'dummy'
+    assertExitCode 0
+    assertStdout 'X[38;5;1mX[KdumX[mX[Kmy'
+    assertStderr ''
+}
+
+test Null data
+{
+    true # too much hasle to test, PRs are welcome
+}
+
+test Read from file using -f
+{
+    echo -e "hello\nworld" >"${tmpDir}/dummy"
+    run -f "${tmpDir}/dummy" <<<'dummy hello dummy world helo'
+    assertExitCode 0
+    assertStdout 'dummy X[38;5;1mX[KhelloX[mX[K dummy X[38;5;1mX[KworldX[mX[K helo'
+    assertStderr ''
+}
+
+test Read from file using --file=FILE
+{
+    echo -e "hello\nworld" >"${tmpDir}/dummy"
+    run --file="${tmpDir}/dummy" <<<'dummy hello dummy world helo'
+    assertExitCode 0
+    assertStdout 'dummy X[38;5;1mX[KhelloX[mX[K dummy X[38;5;1mX[KworldX[mX[K helo'
+    assertStderr ''
+}
+
+test End of options using --
+{
+    run -- --wow <<<'dummy -- --wow dummy'
+    assertExitCode 0
+    assertStdout 'dummy -- X[38;5;1mX[K--wowX[mX[K dummy'
+    assertStderr ''
+}
+
+test Different colors
+{
+    run --blue bc mn --yellow wx <<<'abcdefghijklmnopqrstuvwxyz'
+    assertExitCode 0
+    assertStdout 'aX[38;5;4mX[KbcX[mX[KdefghijklX[38;5;1mX[KmnX[mX[KopqrstuvX[38;5;3mX[KwxX[mX[Kyz'
+    assertStderr ''
+}
+
+test Background color
+{
+    run --bg --blue background foreground <<<'abc background efg foreground ijk'
+    assertExitCode 0
+    assertStdout 'abc X[48;5;4mX[KbackgroundX[mX[K efg X[38;5;1mX[KforegroundX[mX[K ijk'
+    assertStderr ''
+}
+
+test Background color via --background
+{
+    run --bg --blue background foreground <<<'abc background efg foreground ijk'
+    assertExitCode 0
+    assertStdout 'abc X[48;5;4mX[KbackgroundX[mX[K efg X[38;5;1mX[KforegroundX[mX[K ijk'
+    assertStderr ''
+}
+
+test Bunch of things together
+{
+    run -F '. P' --bg --red -P '\b\w*lac.*?\b' -i --yellow LOREM -i -F POSSIMUS <<'INPUT'
+Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Nulla est. Mauris tincidunt sem sed arcu. Duis risus.
+Aliquam in lorem sit amet leo accumsan lacinia. Nullam dapibus fermentum ipsum. Etiam commodo dui eget wisi.
+Integer tempor. Nunc auctor. Integer vulputate sem a nibh rutrum consequat. Nam libero tempore, cum soluta nobis est
+eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est,
+omnis dolor repellendus. Ut tempus purus at lorem. Phasellus rhoncus. Duis bibendum, lectus ut viverra rhoncus,
+dolor nunc faucibus libero, eget facilisis enim ipsum id lacus. Suspendisse nisl. Maecenas ipsum velit, consectetuer eu
+lobortis ut, dictum at dui. Praesent in mauris eu tortor porttitor accumsan. Cum sociis natoque penatibus et magnis
+dis parturient montes, nascetur ridiculus mus. Pellentesque ipsum. Suspendisse nisl nullam rhoncus aliquam ratione.
+INPUT
+    assertExitCode 0
+    read -r -d '' expectedStdout <<'OUTPUT'
+X[38;5;3mX[KLoremX[mX[K ipsum dolor sit amet, consectetuer adipiscing elit. Nulla est. Mauris tincidunt sem sed arcu. Duis risus.
+Aliquam in X[38;5;3mX[KloremX[mX[K sit amet leo accumsan X[48;5;1mX[KlaciniaX[mX[K. Nullam dapibus fermentum ipsum. Etiam commodo dui eget wisi.
+Integer tempor. Nunc auctor. Integer vulputate sem a nibh rutrum consequat. Nam libero tempore, cum soluta nobis est
+eligendi optio cumque nihil impedit quo minus id quod maxime X[48;5;1mX[KplaceatX[mX[K facere X[38;5;4mX[KpossimusX[mX[K, omnis voluptas assumenda est,
+omnis dolor repellendus. Ut tempus purus at X[38;5;3mX[KloremX[mX[KX[38;5;2mX[K. PX[mX[Khasellus rhoncus. Duis bibendum, lectus ut viverra rhoncus,
+dolor nunc faucibus libero, eget facilisis enim ipsum id X[48;5;1mX[KlacusX[mX[K. Suspendisse nisl. Maecenas ipsum velit, consectetuer eu
+lobortis ut, dictum at duiX[38;5;2mX[K. PX[mX[Kraesent in mauris eu tortor porttitor accumsan. Cum sociis natoque penatibus et magnis
+dis parturient montes, nascetur ridiculus musX[38;5;2mX[K. PX[mX[Kellentesque ipsum. Suspendisse nisl nullam rhoncus aliquam ratione.
+OUTPUT
+    assertStdout "${expectedStdout}"
+    assertStderr ''
+}
+
+[[ ${failed} -eq 1 ]] && exit 1 || exit 0
