@@ -1,0 +1,56 @@
+name: CI
+
+on:
+    push:
+        tags:
+            - v*
+
+        branches:
+            - master
+
+    pull_request:
+
+permissions:
+    checks: write
+    contents: read
+    pull-requests: write
+
+jobs:
+    test:
+        name: Test
+        timeout-minutes: 5
+        runs-on: ${{ matrix.os }}
+        strategy:
+            matrix:
+                os: [ ubuntu-latest, macos-latest ]
+        steps:
+            -   uses: actions/checkout@v2
+            -   name: Install newest Bash, Grep and GNU sed if on Mac
+                run: |
+                    if [[ ${{ matrix.os }} != "macos-latest" ]]; then
+                        exit
+                    fi
+
+                    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+                    brew update
+
+                    brew install bash grep gnu-sed
+
+                    echo "/usr/local/bin" >> $GITHUB_PATH
+                    echo "$(brew --prefix)/opt/grep/libexec/gnubin" >> $GITHUB_PATH
+                    echo "$(brew --prefix)/opt/gnu-sed/libexec/gnubin" >> $GITHUB_PATH
+            -   name: Run tests
+                run: ./van-greph-test
+
+    lint:
+        name: Lint
+        runs-on: ubuntu-latest
+        steps:
+            -   uses: actions/checkout@v2
+            -   name: shellcheck
+                uses: reviewdog/action-shellcheck@v1
+                with:
+                    reporter: github-pr-review
+                    check_all_files_with_shebangs: true
+                    shellcheck_flags: '--shell=bash --enable=all'
+                    fail_on_error: true

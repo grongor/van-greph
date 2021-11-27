@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+
+set -o errexit -o errtrace -o nounset -o pipefail
+
+declare -A colors; declare -a colorsOrder; declare -A usedColors=();
+colors["red"]=1    ; colorsOrder+=("red");
+colors["green"]=2  ; colorsOrder+=("green");
+colors["yellow"]=3 ; colorsOrder+=("yellow");
+colors["blue"]=4   ; colorsOrder+=("blue");
+colors["purple"]=5 ; colorsOrder+=("purple");
+colors["cyan"]=6   ; colorsOrder+=("cyan");
+colors["white"]=7  ; colorsOrder+=("white");
+colors["pink"]=213 ; colorsOrder+=("pink");
+colors["black"]=0  ; colorsOrder+=("black");
+
+if [[ $* = *--help* || $* = *-h* ]]; then
+    cat <<HELP
+Usage: van-greph [-z] [[OPTION]... FILTER]...
+
+Colors text from standard input based on OPTION(s) per FILTER(s) and outputs to
+standard output. Some of the options are directly mapped to the grep options.
+
+FILTER is a pattern to match. How exactly will the FILTER be used depends on
+the given OPTION(s), it may be a simple string match (-F) or a match using
+regular expressions (one of -E and -G options).
+
+Available OPTION(s):
+
+  -E, --extended-regexp Next FILTER is extended regular expression
+  -F, --fixed-strings   Next FILTER is string
+  -G, --basic-regexp    Next FILTER is basic regular expression
+  -P, --perl-regexp     Next FILTER is Perl regular expression
+  -i, --ignore-case     Next FILTER will ignore case distinctions
+                        in pattern and data
+  -z, --null-data       A data line ends in 0 byte, not newline
+  -f, --file=FILE       For -f it treats next FILTER as a file from which to
+                        read the patterns, for --file it does the same thing
+                        but takes FILE directly (FILTER must be omitted)
+  --bg, --background    Next matched FILTER will have its background colored
+                        instead of foreground as usual
+  --COLOR               Uses COLOR as a color for next FILTER (instead of
+                        choosing automatically).
+
+                        Available COLORs are:
+                        ${!colors[*]}
+  --                    indicates the unambiguous end of options of next FILTER
+
+Examples:
+  # Color each name differently:
+  van-greph Jane John --black Batman \\
+      <<<'One day, Jane met John and they saw Batman.'
+
+  # Infinite rainbow:
+  base64 </dev/urandom | \\
+      van-greph --green 'a.*c' 'd.*f' --yellow '0.*5' --pink '6.*9'
+
+Why van-greph? Because this script can paint too :)
+Thanks @simpod, great name suggestion!
+HELP
+    exit
+fi
+
+tbdColors=0
+args=("$@")
+
+filters=()
+filterColors=('')
+filterBackground=(0)
+grepArgs=('')
+zeroDelimited=''
+i=0
+filterNumber=0
+for (( i = 0; i < ${#args[@]}; i++ )); do
+    arg="${args[${i}]}"
+
+    # shellcheck disable=SC2249
+    case ${arg} in
+    -E | --extended-regexp)
+        grepArgs[${filterNumber}]="${grepArgs[${filterNumber}]} -E"
+        continue
+        ;;
+    -F | --fixed-strings)
+        grepArgs[${filterNumber}]="${grepArgs[${filterNumber}]} -F"
+        continue
+        ;;
+    -G | --basic-regexp)
+        grepArgs[${filterNumber}]="${grepArgs[${filterNumber}]} -G"
+        continue
+        ;;
+    -P | --perl-regexp)
+        grepArgs[${filterNumber}]="${grepArgs[${filterNumber}]} -P"
+        continue
+        ;;
+    -i | --ignore-case)
+        grepArgs[${filterNumber}]="${grepArgs[${filterNumber}]} -i"
+        continue
+        ;;
+    -z | --null-data)
+        zeroDelimited='-z'
+        continue
+        ;;
+    -f)
+        i=$((i+1))
+        grepArgs[${filterNumber}]="${grepArgs[${filterNumber}]} -f"
+        arg="${args[${i}]}"
+        ;;
+    --file=*)
+        i=$((i+1))
+        grepArgs[${filterNumber}]="${grepArgs[${filterNumber}]} -f"
+        arg="${arg:7}"
+        ;;
+    --bg | --background)
+        filterBackground[${filterNumber}]=1
+        continue
+        ;;
+    --)
+        i=$((i+1))
+        arg="'${args[${i}]}'"
+        ;;
+    --*)
+        color="${arg:2}"
+        filterColors[${filterNumber}]=${color}
+        usedColors+=(["${color}"]=1)
+        if [[ ! -v colors[${color}] ]]; then
+            printf 1>&2 "\e[38;5;1mRequested unknown color \"%s\".\e[0m Available: %s\n" "${color}" "${!colors[*]}"
+            exit 1
+        fi
+
+        continue
+        ;;
+    -*)
+        options='EFGPifz'
+        if [[ ! ${arg} =~ -[${options}]*$ ]]; then
+            printf 1>&2 "\e[38;5;1mDetected unsupported option.\e[0m Available: %s\n" "${options}"
+            exit 1
+        fi
+
+        args=( "${args[@]:0:${i}}" "${args[@]:$((i+1))}" )
+
+        options="${arg:1}"
+        for (( j=0; j<${#options}; j++ )); do
+            args=( "${args[@]:0:$((i+j))}" "-${options:${j}:1}" "${args[@]:$((i+j))}" )
+        done
+
+        i=$((i-1))
+
+        continue
+        ;;
+    esac
+
+    if [[ ${filterColors[${filterNumber}]} == '' ]]; then
+        tbdColors=$((tbdColors+1))
+    fi
+
+    filters+=("${arg}")
+    filterColors+=('')
+    filterBackground+=(0)
+    grepArgs+=('')
+    filterNumber=$((filterNumber+1))
+done
+
+if [[ ${#filters[@]} -eq 0 ]]; then
+    printf 1>&2 "\e[38;5;1mNo filters provided.\e[0m\n"
+    exit 1
+fi
+
+if [[ $(( ${#usedColors[@]} + tbdColors )) -gt ${#colors[@]} ]]; then
+    printf 1>&2 "\e[38;5;1mSorry, too many filters - we ran out of colors...\e[0m\n"
+    exit 1
+fi
+
+
+
+command=''
+
+for (( i = 0; i < ${#filters[@]}; i++ )); do
+    if [[ ${filterColors[${i}]} == '' ]]; then
+        for color in "${colorsOrder[@]}"; do
+            if [[ ! -v usedColors[${color}] ]]; then
+                usedColors+=(["${color}"]=1)
+                break
+            fi
+        done
+    else
+        color="${filterColors[${i}]}"
+    fi
+
+    if [[ ${i} -ne 0 ]]; then
+        command+="|"
+    fi
+
+    filterGrepArgs="${grepArgs[${i}]}"
+    patternArg='-e'
+    if [[ ${filterGrepArgs} = *-f* ]]; then
+        patternArg=''
+    fi
+
+    fgOrBg="38"
+    if [[ ${filterBackground[${i}]} -eq 1 ]]; then
+        fgOrBg="48"
+    fi
+
+    command+="GREP_COLORS='ms=${fgOrBg};5;${colors[${color}]}' env grep ${zeroDelimited} --color=always"
+    if [[ ${filterGrepArgs} = *-F* || ${filterGrepArgs} = *-P* ]]; then
+        command+=" -C ${GREP_C-999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}"
+    else
+        command+=" -e '$'"
+    fi
+    command+="${filterGrepArgs} ${patternArg} '${filters[${i}]}'"
+done
+
+exec sh -c "${command}"
