@@ -51,16 +51,16 @@ Available OPTION(s):
                         choosing automatically).
 
                         Available COLORs are:
-                        ${!colors[*]}
+                        black cyan yellow blue red pink white green purple
   --                    indicates the unambiguous end of options of next FILTER
 
 Examples:
   # Color each name differently:
-  van-greph Jane John --black Batman \\
+  van-greph Jane John --black Batman \
       <<<'One day, Jane met John and they saw Batman.'
 
   # Infinite rainbow:
-  base64 </dev/urandom | \\
+  base64 </dev/urandom | \
       van-greph --green 'a.*c' 'd.*f' --yellow '0.*5' --pink '6.*9'
 
 Why van-greph? Because this script can paint too :)
