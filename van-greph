@@ -201,8 +201,11 @@ for (( i = 0; i < ${#filters[@]}; i++ )); do
     fi
 
     command+="GREP_COLORS='ms=${fgOrBg};5;${colors[${color}]}' env grep ${zeroDelimited} --color=always"
-    if [[ ${filterGrepArgs} = *-F* || ${filterGrepArgs} = *-P* ]]; then
-        command+=" -C ${GREP_C-999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}"
+    if [[ ${filterGrepArgs} = *P* ]]; then
+        filters[${i}]="(${filters[${i}]}|$)"
+    elif [[ ${filterGrepArgs} = *F* ]]; then
+        filterGrepArgs="${filterGrepArgs//F/P}"
+        filters[${i}]="($(sed 's/[^^]/[&]/g; s/\^/\\^/g' <<<"${filters[${i}]}")|$)"
     else
         command+=" -e '$'"
     fi

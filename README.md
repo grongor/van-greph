@@ -74,9 +74,3 @@ Thanks @simpod, great name suggestion!
 If you are on Mac, you will probably need to do some magic like I did in the [CI](.github/workflows/ci.yaml) to get
 this working, because I use some "advanced" features of bash/grep/sed, that ancient versions installed on Mac
 by default can't do.
-
-### Script is stuck
-
-If van-greph gets stuck, try running it again with environment variable `GREP_C=999999999`.
-I wasn't able to reproduce this locally, but in Github Actions the command would take forever to complete
-and this hack was "a solution". Please let me know if you encounter this or if you have any insight into the issue.
