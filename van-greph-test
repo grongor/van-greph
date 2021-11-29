@@ -33,17 +33,10 @@ function assertStderr() {
 }
 
 function assertOutput() {
-    if [[ ${3} == '' ]]; then
-        sizeAndFilename=$(du "${1}")
-        size=$(cut -f1 <<<"${sizeAndFilename}")
-        actualOutput=$(cat "${1}")
-        [[ ${size} -ne 0 ]] && fail "Expected empty ${2}, got:\n${actualOutput}"
-        return
-    fi
-
-    echo "${3}" >"${expected}"
-    tmp=$(cat "${1}")
-    env sed -r 's/\x1b/X/g' <<<"${tmp}" >"${1}"
+    echo -n "${3}" >"${expected}"
+    tmp=$(tr "\0" '0' <"${1}")
+    tmp=$(env sed -r 's/\x1b/X/g' <<<"${tmp}")
+    echo -n "${tmp}" >"${1}"
 
     if ! differences=$(diff --minimal "${1}" "${expected}"); then
         fail "Expected different ${2}:\n${differences}"
@@ -59,6 +52,13 @@ function fail() {
 function test() {
     echo -e "\e[38;5;2mTest: $*\e[0m"
 }
+
+#
+# Actual tests begin here.
+#
+# Note: to simplify the testing, both outputs and expected inputs are both adjusted:
+#     zero bytes are replaced with character 0, control characters are replaced with X
+#
 
 test 'No filters'
 {
@@ -158,12 +158,23 @@ test 'Ignore case via --ignore-case'
 
 test 'Null data'
 {
-    true # too much hasle to test, PRs are welcome
+    echo -en 'oh\0hello\0world\0' | run -z hello
+    assertExitCode 0
+    assertStdout 'oh0X[38;5;1mX[KhelloX[mX[K0world0'
+    assertStderr ''
+}
+
+test 'Null data via --null-data'
+{
+    echo -en 'oh\0hello\0world\0' | run --null-data hello
+    assertExitCode 0
+    assertStdout 'oh0X[38;5;1mX[KhelloX[mX[K0world0'
+    assertStderr ''
 }
 
 test 'Read from file using -f'
 {
-    echo -e "hello\nworld" >"${tmpDir}/dummy"
+    echo -e 'hello\nworld' >"${tmpDir}/dummy"
     run -f "${tmpDir}/dummy" <<<'dummy hello dummy world helo'
     assertExitCode 0
     assertStdout 'dummy X[38;5;1mX[KhelloX[mX[K dummy X[38;5;1mX[KworldX[mX[K helo'
@@ -172,7 +183,7 @@ test 'Read from file using -f'
 
 test 'Read from file using --file=FILE'
 {
-    echo -e "hello\nworld" >"${tmpDir}/dummy"
+    echo -e 'hello\nworld' >"${tmpDir}/dummy"
     run --file="${tmpDir}/dummy" <<<'dummy hello dummy world helo'
     assertExitCode 0
     assertStdout 'dummy X[38;5;1mX[KhelloX[mX[K dummy X[38;5;1mX[KworldX[mX[K helo'
