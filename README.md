@@ -45,6 +45,8 @@ Available OPTION(s):
   -f, --file=FILE       For -f it treats next FILTER as a file from which to
                         read the patterns, for --file it does the same thing
                         but takes FILE directly (FILTER must be omitted)
+  -k, --keep-colors     Keeps colors present in the input data. Otherwise,
+                        the colors are reset before processing the input.
   --bg, --background    Next matched FILTER will have its background colored
                         instead of foreground as usual
   --COLOR               Uses COLOR as a color for next FILTER (instead of

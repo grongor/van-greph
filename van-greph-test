@@ -250,6 +250,38 @@ test 'Background color via --background'
     assertStderr ''
 }
 
+test 'No keep colors (default)'
+{
+    echo -e 'oh hello \e[38;5;1mworld\e[0m' | run hello
+    assertExitCode 0
+    assertStdout 'oh X[38;5;1mX[KhelloX[mX[K world'
+    assertStderr ''
+}
+
+test 'No keep colors (default), zero delimited'
+{
+    echo -en 'oh\0hello\0\e[38;5;1mworld\e[0m\0' | run -z hello
+    assertExitCode 0
+    assertStdout 'oh0X[38;5;1mX[KhelloX[mX[K0world0'
+    assertStderr ''
+}
+
+test 'Keep colors'
+{
+    echo -e 'oh hello \e[38;5;1mworld\e[0m' | run -k hello
+    assertExitCode 0
+    assertStdout 'oh X[38;5;1mX[KhelloX[mX[K X[38;5;1mworldX[0m'
+    assertStderr ''
+}
+
+test 'Keep colors via --keep-colors'
+{
+    echo -e 'oh hello \e[38;5;1mworld\e[0m' | run --keep-colors hello
+    assertExitCode 0
+    assertStdout 'oh X[38;5;1mX[KhelloX[mX[K X[38;5;1mworldX[0m'
+    assertStderr ''
+}
+
 test 'Bunch of things together'
 {
     run -F '. P' --bg --red -P '\b\w*lac.*?\b' -i --yellow LOREM -i -F POSSIMUS <<'INPUT'
