@@ -2,10 +2,6 @@
 
 set -o nounset -o pipefail
 
-# For some reason the jobs will get stuck if this number is larger, but I wasn't able to reproduce this locally.
-# Please, let me know if you have any insight into this, I'd love to get rid of it.
-[[ -v GITHUB_ACTIONS ]] && export GREP_C=999999999
-
 tmpDir=$(mktemp -d)
 trap 'rm -rf "${tmpDir}"' EXIT
 
@@ -15,7 +11,7 @@ expected="${tmpDir}/expected"
 failed=0
 
 function run() {
-    ./van-greph "$@"  >"${stdout}" 2>"${stderr}"
+    ./van-greph "$@" >"${stdout}" 2>"${stderr}"
 }
 
 function assertExitCode() {
@@ -45,7 +41,7 @@ function assertOutput() {
 
 function fail() {
     echo -e "\t\e[38;5;1mFAILED\e[0m"
-    echo -e 2>&1 "$*"
+    echo -e "$*" 2>&1
     failed=1
 }
 
@@ -92,6 +88,14 @@ test 'Extended regexp via --extended-regexp'
     assertStderr ''
 }
 
+test 'Extended regexp, no match still produces output for previous match'
+{
+    run there -E NOMATCH <<<'hello there how are you'
+    assertExitCode 0
+    assertStdout 'hello X[38;5;1mX[KthereX[mX[K how are you'
+    assertStderr ''
+}
+
 test 'Fixed string match'
 {
     run -F '1*3' <<<'dummy 1*3 dummy'
@@ -105,6 +109,14 @@ test 'Fixed string match via --fixed-strings'
     run --fixed-strings '1*3' <<<'dummy 1*3 dummy'
     assertExitCode 0
     assertStdout 'dummy X[38;5;1mX[K1*3X[mX[K dummy'
+    assertStderr ''
+}
+
+test 'Fixed string, no match still produces output for previous match'
+{
+    run there -F NOMATCH <<<'hello there how are you'
+    assertExitCode 0
+    assertStdout 'hello X[38;5;1mX[KthereX[mX[K how are you'
     assertStderr ''
 }
 
@@ -124,6 +136,14 @@ test 'Basic regexp via --basic-regexp'
     assertStderr ''
 }
 
+test 'Basic regexp, no match still produces output for previous match'
+{
+    run there -G NOMATCH <<<'hello there how are you'
+    assertExitCode 0
+    assertStdout 'hello X[38;5;1mX[KthereX[mX[K how are you'
+    assertStderr ''
+}
+
 test 'Perl regexp'
 {
     run -P '\babc.*?\b' <<<'dumy abcdefg dummy'
@@ -137,6 +157,14 @@ test 'Perl regexp via --perl-regexp'
     run --perl-regexp '\babc.*?\b' <<<'dumy abcdefg dummy'
     assertExitCode 0
     assertStdout 'dumy X[38;5;1mX[KabcdefgX[mX[K dummy'
+    assertStderr ''
+}
+
+test 'Perl regexp, no match still produces output for previous match'
+{
+    run there -P NOMATCH <<<'hello there how are you'
+    assertExitCode 0
+    assertStdout 'hello X[38;5;1mX[KthereX[mX[K how are you'
     assertStderr ''
 }
 
