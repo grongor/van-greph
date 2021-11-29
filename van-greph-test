@@ -60,7 +60,7 @@ function test() {
     echo -e "\e[38;5;2mTest: $*\e[0m"
 }
 
-test No filters
+test 'No filters'
 {
     run <<<'dummy'
     assertExitCode 1
@@ -68,7 +68,7 @@ test No filters
     assertStderr 'X[38;5;1mNo filters provided.X[0m'
 }
 
-test Too many filters
+test 'Too many filters'
 {
     run a b c d e f g h i j k l m n o p q r s t <<<'dummy'
     assertExitCode 1
@@ -76,7 +76,7 @@ test Too many filters
     assertStderr 'X[38;5;1mSorry, too many filters - we ran out of colors...X[0m'
 }
 
-test Extended regexp
+test 'Extended regexp'
 {
     run -E '1.+' <<<'dummy 123 dummy'
     assertExitCode 0
@@ -84,7 +84,7 @@ test Extended regexp
     assertStderr ''
 }
 
-test Extended regexp via --extended-regexp
+test 'Extended regexp via --extended-regexp'
 {
     run --extended-regexp '1.+' <<<'dummy 123 dummy'
     assertExitCode 0
@@ -92,7 +92,7 @@ test Extended regexp via --extended-regexp
     assertStderr ''
 }
 
-test Fixed string match
+test 'Fixed string match'
 {
     run -F '1*3' <<<'dummy 1*3 dummy'
     assertExitCode 0
@@ -100,7 +100,7 @@ test Fixed string match
     assertStderr ''
 }
 
-test Fixed string match via --fixed-strings
+test 'Fixed string match via --fixed-strings'
 {
     run --fixed-strings '1*3' <<<'dummy 1*3 dummy'
     assertExitCode 0
@@ -108,7 +108,7 @@ test Fixed string match via --fixed-strings
     assertStderr ''
 }
 
-test Basic regexp
+test 'Basic regexp'
 {
     run -G '1.\+' <<<'dummy 123 dummy'
     assertExitCode 0
@@ -116,7 +116,7 @@ test Basic regexp
     assertStderr ''
 }
 
-test Basic regexp via --basic-regexp
+test 'Basic regexp via --basic-regexp'
 {
     run --basic-regexp '1.\+' <<<'dummy 123 dummy'
     assertExitCode 0
@@ -124,7 +124,7 @@ test Basic regexp via --basic-regexp
     assertStderr ''
 }
 
-test Perl regexp
+test 'Perl regexp'
 {
     run -P '\babc.*?\b' <<<'dumy abcdefg dummy'
     assertExitCode 0
@@ -132,7 +132,7 @@ test Perl regexp
     assertStderr ''
 }
 
-test Perl regexp via --perl-regexp
+test 'Perl regexp via --perl-regexp'
 {
     run --perl-regexp '\babc.*?\b' <<<'dumy abcdefg dummy'
     assertExitCode 0
@@ -140,7 +140,7 @@ test Perl regexp via --perl-regexp
     assertStderr ''
 }
 
-test Ignore case
+test 'Ignore case'
 {
     run -i 'DUM' <<<'dummy'
     assertExitCode 0
@@ -148,7 +148,7 @@ test Ignore case
     assertStderr ''
 }
 
-test Ignore case via --ignore-case
+test 'Ignore case via --ignore-case'
 {
     run -i 'DUM' <<<'dummy'
     assertExitCode 0
@@ -156,12 +156,12 @@ test Ignore case via --ignore-case
     assertStderr ''
 }
 
-test Null data
+test 'Null data'
 {
     true # too much hasle to test, PRs are welcome
 }
 
-test Read from file using -f
+test 'Read from file using -f'
 {
     echo -e "hello\nworld" >"${tmpDir}/dummy"
     run -f "${tmpDir}/dummy" <<<'dummy hello dummy world helo'
@@ -170,7 +170,7 @@ test Read from file using -f
     assertStderr ''
 }
 
-test Read from file using --file=FILE
+test 'Read from file using --file=FILE'
 {
     echo -e "hello\nworld" >"${tmpDir}/dummy"
     run --file="${tmpDir}/dummy" <<<'dummy hello dummy world helo'
@@ -179,7 +179,7 @@ test Read from file using --file=FILE
     assertStderr ''
 }
 
-test End of options using --
+test 'End of options using --'
 {
     run -- --wow <<<'dummy -- --wow dummy'
     assertExitCode 0
@@ -187,7 +187,7 @@ test End of options using --
     assertStderr ''
 }
 
-test Different colors
+test 'Different colors'
 {
     run --blue bc mn --yellow wx <<<'abcdefghijklmnopqrstuvwxyz'
     assertExitCode 0
@@ -195,7 +195,7 @@ test Different colors
     assertStderr ''
 }
 
-test Background color
+test 'Background color'
 {
     run --bg --blue background foreground <<<'abc background efg foreground ijk'
     assertExitCode 0
@@ -203,7 +203,7 @@ test Background color
     assertStderr ''
 }
 
-test Background color via --background
+test 'Background color via --background'
 {
     run --bg --blue background foreground <<<'abc background efg foreground ijk'
     assertExitCode 0
@@ -211,7 +211,7 @@ test Background color via --background
     assertStderr ''
 }
 
-test Bunch of things together
+test 'Bunch of things together'
 {
     run -F '. P' --bg --red -P '\b\w*lac.*?\b' -i --yellow LOREM -i -F POSSIMUS <<'INPUT'
 Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Nulla est. Mauris tincidunt sem sed arcu. Duis risus.
